@@ -6,12 +6,7 @@
  * callback functions (SDL_AppInit, SDL_AppEvent, SDL_AppIterate, SDL_AppQuit) instead of
  * providing a traditional main() function. All callbacks delegate to the singleton App instance.
  */
-
-/*  If defined, SDL will expect the app to provide several functions:
- *  SDL_AppInit, SDL_AppEvent, SDL_AppIterate, and SDL_AppQuit.
- *  The app should not provide a main function in this case, and doing so will likely cause the build to fail.
- */
-#define SDL_MAIN_USE_CALLBACKS 1
+#define SDL_MAIN_USE_CALLBACKS = 1
 
 #include <SDL3/SDL_main.h>
 #include "App.h"
@@ -24,7 +19,7 @@ extern "C" {
  * Called once at application startup by SDL3's main loop. This function delegates
  * initialization to the singleton App instance.
  *
- * @param appstate Pointer to application state pointer (reserved for future use, not used in this implementation)
+ * @param appstate application state pointer (reserved for future use, not used in this implementation)
  * @param argc Command line argument count
  * @param argv Command line argument values
  * @return SDL_AppResult indicating success or failure (SDL_APP_CONTINUE or SDL_APP_FAILURE)
