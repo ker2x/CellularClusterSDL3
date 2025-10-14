@@ -11,6 +11,7 @@ find_package(OpenCL REQUIRED)
 add_executable(main
     main.cpp
     App.cpp
+    DiagnosticHelper.cpp
 )
 
 # Link SDL3 to the executable
