@@ -4,7 +4,6 @@
 #include <SDL3/SDL_main.h>
 #include <CL/cl.h>
 #include <string>
-#include "FPSCounter.h"
 
 class App {
 public:
@@ -33,7 +32,6 @@ private:
     // State
     SDL_Window* window_ {nullptr};
     SDL_Renderer* renderer_ {nullptr};
-    FPSCounter fpsCounter_;
 
     static constexpr int WIDTH  = 640;
     static constexpr int HEIGHT = 480;

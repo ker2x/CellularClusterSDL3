@@ -48,8 +48,8 @@ SDL_AppResult App::onEvent(SDL_Event* event) {
     if (event->type == SDL_EVENT_KEY_DOWN) {
         if (event->key.key == SDLK_ESCAPE) return SDL_APP_SUCCESS;
         if (event->key.key == SDLK_F) {
-            fpsCounter_.toggle();
-            std::cout << "FPS display: " << (fpsCounter_.isShowing() ? "ON" : "OFF") << std::endl;
+            const bool is_fullscreen = SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN;
+            SDL_SetWindowFullscreen(window_, !is_fullscreen);
         }
     }
 
@@ -57,10 +57,8 @@ SDL_AppResult App::onEvent(SDL_Event* event) {
 }
 
 SDL_AppResult App::iterate() {
-    fpsCounter_.update();
 
     SDL_RenderClear(renderer_);
-    fpsCounter_.render(renderer_);
     SDL_RenderPresent(renderer_);
 
     return SDL_APP_CONTINUE;

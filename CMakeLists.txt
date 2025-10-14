@@ -11,7 +11,6 @@ find_package(OpenCL REQUIRED)
 add_executable(main
     main.cpp
     App.cpp
-    FPSCounter.cpp
 )
 
 # Link SDL3 to the executable
