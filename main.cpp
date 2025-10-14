@@ -57,7 +57,7 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
  * @return SDL_AppResult indicating whether to continue or quit (SDL_APP_CONTINUE or SDL_APP_SUCCESS)
  */
 SDL_AppResult SDL_AppIterate(void *appstate) {
-    return App::instance().iterate();
+    return App::instance().loop();
 }
 
 /**
