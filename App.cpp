@@ -26,7 +26,9 @@ App::~App() {
 
 // Initialize SDL, create window/renderer, and print diagnostic info
 SDL_AppResult App::init(int /*argc*/, char** /*argv*/) {
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
+    SDL_SetAppMetadata("Cellular cluster - SDL3", "v0.1", "https://github.com/ker2x/CellularClusterSDL3");
+
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         SDL_Log("SDL_Init: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
