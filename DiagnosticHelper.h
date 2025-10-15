@@ -8,6 +8,9 @@
  */
 class DiagnosticHelper {
 public:
+    /// Print SDL version information
+    static void printSDLVersion();
+
     /// Print available SDL video and render drivers
     static void printSDLRenderDrivers();
 

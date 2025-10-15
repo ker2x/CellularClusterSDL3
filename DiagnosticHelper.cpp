@@ -1,25 +1,156 @@
 #include "DiagnosticHelper.h"
 
-#include <iostream>
 #include <vector>
 #include <iomanip>
 #include <string>
+#include <sstream>
 
-// Print available SDL video and render drivers
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+namespace {
+    // Split space-separated string into individual items
+    std::vector<std::string> splitBySpace(const std::string &str) {
+        std::vector<std::string> result;
+        std::istringstream iss(str);
+        std::string item;
+        while (iss >> item) {
+            result.push_back(item);
+        }
+        return result;
+    }
+
+    // Print a list of items with bullet points
+    void printList(const std::string &title, const std::vector<std::string> &items, const char *indent = "  ") {
+        SDL_Log("%s%s", indent, title.c_str());
+        if (items.empty()) {
+            SDL_Log("%s  (none)", indent);
+        } else {
+            for (const auto &item: items) {
+                SDL_Log("%s  - %s", indent, item.c_str());
+            }
+        }
+    }
+
+    // Convert SDL_Colorspace enum to human-readable string
+    const char *getColorspaceName(SDL_Colorspace cs) {
+        switch (cs) {
+            case SDL_COLORSPACE_UNKNOWN: return "Unknown";
+            case SDL_COLORSPACE_SRGB: return "sRGB (gamma corrected)";
+            case SDL_COLORSPACE_SRGB_LINEAR: return "sRGB Linear";
+            case SDL_COLORSPACE_HDR10: return "HDR10 (BT.2020 PQ)";
+            case SDL_COLORSPACE_JPEG: return "JPEG (BT.709 YCbCr Full)";
+            case SDL_COLORSPACE_BT601_LIMITED: return "BT.601 Limited";
+            case SDL_COLORSPACE_BT601_FULL: return "BT.601 Full";
+            case SDL_COLORSPACE_BT709_LIMITED: return "BT.709 Limited";
+            case SDL_COLORSPACE_BT709_FULL: return "BT.709 Full";
+            case SDL_COLORSPACE_BT2020_LIMITED: return "BT.2020 Limited";
+            case SDL_COLORSPACE_BT2020_FULL: return "BT.2020 Full";
+            default: return "Custom/Unknown";
+        }
+    }
+
+    // Query OpenCL platform string property
+    std::string getClPlatformString(cl_platform_id platform, cl_platform_info param) {
+        size_t size = 0;
+        clGetPlatformInfo(platform, param, 0, nullptr, &size);
+        std::string result(size, '\0');
+        if (size > 0) {
+            clGetPlatformInfo(platform, param, size, result.data(), nullptr);
+            if (!result.empty() && result.back() == '\0') {
+                result.pop_back();
+            }
+        }
+        return result;
+    }
+
+    // Query OpenCL device string property
+    std::string getClDeviceString(cl_device_id device, cl_device_info param) {
+        size_t size = 0;
+        clGetDeviceInfo(device, param, 0, nullptr, &size);
+        std::string result(size, '\0');
+        if (size > 0) {
+            clGetDeviceInfo(device, param, size, result.data(), nullptr);
+            if (!result.empty() && result.back() == '\0') {
+                result.pop_back();
+            }
+        }
+        return result;
+    }
+
+    // Query OpenCL device unsigned long property
+    cl_ulong getClDeviceULong(cl_device_id device, cl_device_info param) {
+        cl_ulong value = 0;
+        clGetDeviceInfo(device, param, sizeof(value), &value, nullptr);
+        return value;
+    }
+
+    // Query OpenCL device unsigned int property
+    cl_uint getClDeviceUInt(cl_device_id device, cl_device_info param) {
+        cl_uint value = 0;
+        clGetDeviceInfo(device, param, sizeof(value), &value, nullptr);
+        return value;
+    }
+
+    // Query OpenCL device size_t property
+    size_t getClDeviceSizeT(cl_device_id device, cl_device_info param) {
+        size_t value = 0;
+        clGetDeviceInfo(device, param, sizeof(value), &value, nullptr);
+        return value;
+    }
+
+    // Convert OpenCL device type flags to string
+    std::string getDeviceTypeString(cl_device_type type) {
+        std::string result;
+        if (type & CL_DEVICE_TYPE_CPU) result += "CPU ";
+        if (type & CL_DEVICE_TYPE_GPU) result += "GPU ";
+        if (type & CL_DEVICE_TYPE_ACCELERATOR) result += "ACCELERATOR ";
+        if (type & CL_DEVICE_TYPE_DEFAULT) result += "DEFAULT ";
+        if (!result.empty()) result.pop_back(); // Remove trailing space
+        return result;
+    }
+} // anonymous namespace
+
+// ============================================================================
+// SDL Diagnostics
+// ============================================================================
+
+void DiagnosticHelper::printSDLVersion() {
+    SDL_Log("=== SDL Version ===");
+
+    int compiled_major = SDL_MAJOR_VERSION;
+    int compiled_minor = SDL_MINOR_VERSION;
+    int compiled_patch = SDL_MICRO_VERSION;
+    SDL_Log("Compiled against: %d.%d.%d", compiled_major, compiled_minor, compiled_patch);
+
+    int linked_version = SDL_GetVersion();
+    int linked_major = SDL_VERSIONNUM_MAJOR(linked_version);
+    int linked_minor = SDL_VERSIONNUM_MINOR(linked_version);
+    int linked_patch = SDL_VERSIONNUM_MICRO(linked_version);
+    SDL_Log("Linked against:   %d.%d.%d", linked_major, linked_minor, linked_patch);
+
+    const char* revision = SDL_GetRevision();
+    if (revision && revision[0] != '\0') {
+        SDL_Log("Revision:         %s", revision);
+    }
+}
+
 void DiagnosticHelper::printSDLRenderDrivers() {
     SDL_Log("=== SDL Video/Renderer Drivers ===");
 
-    // Display current active video driver
+    // Current video driver
     if (const char *video_driver = SDL_GetCurrentVideoDriver()) {
         SDL_Log("Current video driver: %s", video_driver);
     }
 
-    // Enumerate all available render drivers
+    // Available render drivers
     const int num = SDL_GetNumRenderDrivers();
     if (num < 0) {
         SDL_LogError(SDL_LOG_CATEGORY_RENDER, "SDL_GetNumRenderDrivers error: %s", SDL_GetError());
         return;
     }
+
     SDL_Log("Available render drivers: %d", num);
     for (int i = 0; i < num; ++i) {
         const char *name = SDL_GetRenderDriver(i);
@@ -27,195 +158,177 @@ void DiagnosticHelper::printSDLRenderDrivers() {
     }
 }
 
-// Helper function to convert SDL_Colorspace enum to human-readable string
-static const char* getColorspaceName(SDL_Colorspace cs) {
-    switch (cs) {
-        case SDL_COLORSPACE_UNKNOWN: return "Unknown";
-        case SDL_COLORSPACE_SRGB: return "sRGB (gamma corrected)";
-        case SDL_COLORSPACE_SRGB_LINEAR: return "sRGB Linear";
-        case SDL_COLORSPACE_HDR10: return "HDR10 (BT.2020 PQ)";
-        case SDL_COLORSPACE_JPEG: return "JPEG (BT.709 YCbCr Full)";
-        case SDL_COLORSPACE_BT601_LIMITED: return "BT.601 Limited";
-        case SDL_COLORSPACE_BT601_FULL: return "BT.601 Full";
-        case SDL_COLORSPACE_BT709_LIMITED: return "BT.709 Limited";
-        case SDL_COLORSPACE_BT709_FULL: return "BT.709 Full";
-        case SDL_COLORSPACE_BT2020_LIMITED: return "BT.2020 Limited";
-        case SDL_COLORSPACE_BT2020_FULL: return "BT.2020 Full";
-        default: return "Custom/Unknown";
-    }
-}
-
-// Print detailed renderer properties and capabilities
-void DiagnosticHelper::printSDLRendererInfo(SDL_Renderer *r) {
+void DiagnosticHelper::printSDLRendererInfo(SDL_Renderer *renderer) {
     SDL_Log("=== SDL Current Renderer ===");
-    if (!r) { SDL_LogWarn(SDL_LOG_CATEGORY_RENDER, "No renderer"); return; }
 
-    const char *name = SDL_GetRendererName(r);
+    if (!renderer) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_RENDER, "No renderer");
+        return;
+    }
+
+    // Basic renderer info
+    const char *name = SDL_GetRendererName(renderer);
     SDL_Log("Name: %s", (name ? name : "(unknown)"));
 
-    int w = 0, h = 0;
-    if (SDL_GetRenderOutputSize(r, &w, &h)) {
-        SDL_Log("Output size: %dx%d", w, h);
+    int width = 0, height = 0;
+    if (SDL_GetRenderOutputSize(renderer, &width, &height)) {
+        SDL_Log("Output size: %dx%d", width, height);
     }
 
-    // Query renderer properties for detailed capabilities
-    if (SDL_PropertiesID props = SDL_GetRendererProperties(r)) {
-        // Helper lambdas for property access
-        auto getNum = [&](const char* key, Sint64 def=0){ return SDL_GetNumberProperty(props, key, def); };
-        auto getStr = [&](const char* key, const char* def=""){ return SDL_GetStringProperty(props, key, def); };
-        auto getPtr = [&](const char* key){ return SDL_GetPointerProperty(props, key, nullptr); };
-        auto getBool = [&](const char* key, bool def=false){ return SDL_GetBooleanProperty(props, key, def); };
-
-        // Display core renderer capabilities
-        SDL_Log("Max texture size: %lld", (long long)getNum(SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, -1));
-        SDL_Log("Driver (property): %s", getStr(SDL_PROP_RENDERER_NAME_STRING, "(unknown)"));
-        SDL_Log("VSync setting:    %lld", (long long)getNum(SDL_PROP_RENDERER_VSYNC_NUMBER, 0));
-
-        // Display colorspace in human-readable format
-        SDL_Colorspace colorspace = static_cast<SDL_Colorspace>(getNum(SDL_PROP_RENDERER_OUTPUT_COLORSPACE_NUMBER, 0));
-        SDL_Log("Output colorspace: %s", getColorspaceName(colorspace));
-        SDL_Log("HDR enabled:      %s", (getBool(SDL_PROP_RENDERER_HDR_ENABLED_BOOLEAN, false) ? "Yes" : "No"));
-        SDL_Log("SDR white point:  %f", SDL_GetFloatProperty(props, SDL_PROP_RENDERER_SDR_WHITE_POINT_FLOAT, 0.0f));
-        SDL_Log("HDR headroom:     %f", SDL_GetFloatProperty(props, SDL_PROP_RENDERER_HDR_HEADROOM_FLOAT, 0.0f));
-
-        // List supported texture formats
-        const SDL_PixelFormat *fmts = static_cast<const SDL_PixelFormat*>(getPtr(SDL_PROP_RENDERER_TEXTURE_FORMATS_POINTER));
-        if (fmts) {
-            SDL_Log("Texture formats:");
-            bool found = false;
-            for (int i = 0; fmts[i] != SDL_PIXELFORMAT_UNKNOWN; ++i) {
-                SDL_Log("  - %s", SDL_GetPixelFormatName(fmts[i]));
-                found = true;
-            }
-            if (!found) SDL_Log("  (none)");
-        } else {
-            SDL_Log("Texture formats:  (unknown)");
-        }
-    } else {
+    // Query renderer properties
+    SDL_PropertiesID props = SDL_GetRendererProperties(renderer);
+    if (!props) {
         SDL_LogWarn(SDL_LOG_CATEGORY_RENDER, "No renderer properties available");
+        return;
+    }
+
+    // Core capabilities
+    SDL_Log("Max texture size: %lld",
+            (long long) SDL_GetNumberProperty(props, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, -1));
+    SDL_Log("Driver:           %s",
+            SDL_GetStringProperty(props, SDL_PROP_RENDERER_NAME_STRING, "(unknown)"));
+    SDL_Log("VSync:            %lld",
+            (long long) SDL_GetNumberProperty(props, SDL_PROP_RENDERER_VSYNC_NUMBER, 0));
+
+    // Colorspace
+    SDL_Colorspace colorspace = static_cast<SDL_Colorspace>(
+        SDL_GetNumberProperty(props, SDL_PROP_RENDERER_OUTPUT_COLORSPACE_NUMBER, 0));
+    SDL_Log("Colorspace:       %s", getColorspaceName(colorspace));
+
+    // HDR info
+    bool hdrEnabled = SDL_GetBooleanProperty(props, SDL_PROP_RENDERER_HDR_ENABLED_BOOLEAN, false);
+    SDL_Log("HDR enabled:      %s", hdrEnabled ? "Yes" : "No");
+    if (hdrEnabled) {
+        SDL_Log("  SDR white point: %.2f",
+                SDL_GetFloatProperty(props, SDL_PROP_RENDERER_SDR_WHITE_POINT_FLOAT, 0.0f));
+        SDL_Log("  HDR headroom:    %.2f",
+                SDL_GetFloatProperty(props, SDL_PROP_RENDERER_HDR_HEADROOM_FLOAT, 0.0f));
+    }
+
+    // Texture formats
+    const SDL_PixelFormat *formats = static_cast<const SDL_PixelFormat *>(
+        SDL_GetPointerProperty(props, SDL_PROP_RENDERER_TEXTURE_FORMATS_POINTER, nullptr));
+
+    if (formats) {
+        std::vector<std::string> formatNames;
+        for (int i = 0; formats[i] != SDL_PIXELFORMAT_UNKNOWN; ++i) {
+            formatNames.push_back(SDL_GetPixelFormatName(formats[i]));
+        }
+        printList("Texture formats:", formatNames);
+    } else {
+        SDL_Log("Texture formats:  (unknown)");
     }
 }
 
-// Print OpenCL platform and device information
+// ============================================================================
+// OpenCL Diagnostics
+// ============================================================================
+
+namespace {
+    void printClPlatform(cl_platform_id platform, cl_uint index) {
+        SDL_Log("Platform [%u]", index);
+        SDL_Log("  Profile:  %s", getClPlatformString(platform, CL_PLATFORM_PROFILE).c_str());
+        SDL_Log("  Version:  %s", getClPlatformString(platform, CL_PLATFORM_VERSION).c_str());
+        SDL_Log("  Name:     %s", getClPlatformString(platform, CL_PLATFORM_NAME).c_str());
+        SDL_Log("  Vendor:   %s", getClPlatformString(platform, CL_PLATFORM_VENDOR).c_str());
+
+        // Extensions
+        std::string extensionsStr = getClPlatformString(platform, CL_PLATFORM_EXTENSIONS);
+        std::vector<std::string> extensions = splitBySpace(extensionsStr);
+        printList("Extensions:", extensions, "  ");
+    }
+
+    void printClDevice(cl_device_id device, cl_uint index) {
+        SDL_Log("  Device [%u]", index);
+
+        // Basic info
+        SDL_Log("    Name:            %s", getClDeviceString(device, CL_DEVICE_NAME).c_str());
+        SDL_Log("    Vendor:          %s", getClDeviceString(device, CL_DEVICE_VENDOR).c_str());
+        SDL_Log("    Version:         %s", getClDeviceString(device, CL_DEVICE_VERSION).c_str());
+        SDL_Log("    Driver version:  %s", getClDeviceString(device, CL_DRIVER_VERSION).c_str());
+
+        // Device type
+        cl_device_type type = 0;
+        clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(type), &type, nullptr);
+        SDL_Log("    Type:            %s", getDeviceTypeString(type).c_str());
+
+        // Compute capabilities
+        SDL_Log("    Compute Units:   %u", getClDeviceUInt(device, CL_DEVICE_MAX_COMPUTE_UNITS));
+        SDL_Log("    Clock Frequency: %u MHz", getClDeviceUInt(device, CL_DEVICE_MAX_CLOCK_FREQUENCY));
+
+        // Memory info
+        cl_ulong globalMem = getClDeviceULong(device, CL_DEVICE_GLOBAL_MEM_SIZE);
+        cl_ulong localMem = getClDeviceULong(device, CL_DEVICE_LOCAL_MEM_SIZE);
+        SDL_Log("    Global Memory:   %llu MiB", (unsigned long long) (globalMem / (1024ULL * 1024ULL)));
+        SDL_Log("    Local Memory:    %llu KiB", (unsigned long long) (localMem / 1024ULL));
+
+        // Work group info
+        size_t maxWorkGroupSize = getClDeviceSizeT(device, CL_DEVICE_MAX_WORK_GROUP_SIZE);
+        SDL_Log("    Max WG Size:     %zu", maxWorkGroupSize);
+
+        size_t dims[3] = {0, 0, 0};
+        size_t size = 0;
+        clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES, 0, nullptr, &size);
+        if (size >= sizeof(dims)) {
+            clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(dims), dims, nullptr);
+            SDL_Log("    Max WG Dims:     %zu x %zu x %zu", dims[0], dims[1], dims[2]);
+        } else {
+            SDL_Log("    Max WG Dims:     n/a");
+        }
+
+        // Image support
+        bool imageSupport = getClDeviceUInt(device, CL_DEVICE_IMAGE_SUPPORT) != 0;
+        SDL_Log("    Image Support:   %s", imageSupport ? "Yes" : "No");
+
+        // Extensions
+        std::string extensionsStr = getClDeviceString(device, CL_DEVICE_EXTENSIONS);
+        std::vector<std::string> extensions = splitBySpace(extensionsStr);
+        printList("Extensions:", extensions, "    ");
+    }
+} // anonymous namespace
+
 void DiagnosticHelper::printOpenCLInfo() {
     SDL_Log("=== OpenCL Platforms and Devices ===");
 
-    // Enumerate available OpenCL platforms
-    cl_uint num_platforms = 0;
-    cl_int err = clGetPlatformIDs(0, nullptr, &num_platforms);
+    // Get platforms
+    cl_uint numPlatforms = 0;
+    cl_int err = clGetPlatformIDs(0, nullptr, &numPlatforms);
     if (err != CL_SUCCESS) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "clGetPlatformIDs failed: %d", err);
         return;
     }
 
-    std::vector<cl_platform_id> platforms(num_platforms);
-    if (num_platforms > 0) clGetPlatformIDs(num_platforms, platforms.data(), nullptr);
+    if (numPlatforms == 0) {
+        SDL_Log("No OpenCL platforms found");
+        return;
+    }
 
-    // Iterate through each platform
-    for (cl_uint p = 0; p < num_platforms; ++p) {
-        auto pid = platforms[p];
+    std::vector<cl_platform_id> platforms(numPlatforms);
+    clGetPlatformIDs(numPlatforms, platforms.data(), nullptr);
 
-        // Helper lambda to query platform info strings
-        auto getPlatStr = [&](cl_platform_info param) {
-            size_t sz = 0; clGetPlatformInfo(pid, param, 0, nullptr, &sz);
-            std::string s(sz, '\0');
-            if (sz) clGetPlatformInfo(pid, param, sz, s.data(), nullptr);
-            if (!s.empty() && s.back() == '\0') s.pop_back();
-            return s;
-        };
+    // Iterate platforms
+    for (cl_uint p = 0; p < numPlatforms; ++p) {
+        printClPlatform(platforms[p], p);
 
-        // Display platform details
-        SDL_Log("Platform [%u]", p);
-        SDL_Log("  Profile:  %s", getPlatStr(CL_PLATFORM_PROFILE).c_str());
-        SDL_Log("  Version:  %s", getPlatStr(CL_PLATFORM_VERSION).c_str());
-        SDL_Log("  Name:     %s", getPlatStr(CL_PLATFORM_NAME).c_str());
-        SDL_Log("  Vendor:   %s", getPlatStr(CL_PLATFORM_VENDOR).c_str());
-        // Display platform extensions in readable format
-        std::string extStr = getPlatStr(CL_PLATFORM_EXTENSIONS);
-        SDL_Log("  Extensions:");
-        size_t pos = 0, nextPos;
-        while ((nextPos = extStr.find(' ', pos)) != std::string::npos) {
-            std::string ext = extStr.substr(pos, nextPos - pos);
-            if (!ext.empty()) SDL_Log("    - %s", ext.c_str());
-            pos = nextPos + 1;
-        }
-        if (pos < extStr.size()) {
-            std::string ext = extStr.substr(pos);
-            if (!ext.empty()) SDL_Log("    - %s", ext.c_str());
-        }
-
-        // Enumerate devices for this platform
-        cl_uint num_devices = 0;
-        err = clGetDeviceIDs(pid, CL_DEVICE_TYPE_ALL, 0, nullptr, &num_devices);
+        // Get devices for this platform
+        cl_uint numDevices = 0;
+        err = clGetDeviceIDs(platforms[p], CL_DEVICE_TYPE_ALL, 0, nullptr, &numDevices);
         if (err != CL_SUCCESS) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "  clGetDeviceIDs failed: %d", err);
             continue;
         }
-        std::vector<cl_device_id> devices(num_devices);
-        if (num_devices > 0) clGetDeviceIDs(pid, CL_DEVICE_TYPE_ALL, num_devices, devices.data(), nullptr);
 
-        // Iterate through each device
-        for (cl_uint d = 0; d < num_devices; ++d) {
-            auto did = devices[d];
+        if (numDevices == 0) {
+            SDL_Log("  No devices found");
+            continue;
+        }
 
-            // Helper lambdas to query device info
-            auto getDevStr = [&](cl_device_info param) {
-                size_t sz = 0; clGetDeviceInfo(did, param, 0, nullptr, &sz);
-                std::string s(sz, '\0');
-                if (sz) clGetDeviceInfo(did, param, sz, s.data(), nullptr);
-                if (!s.empty() && s.back() == '\0') s.pop_back();
-                return s;
-            };
-            auto getDevULong = [&](cl_device_info param) {
-                cl_ulong v = 0; clGetDeviceInfo(did, param, sizeof(v), &v, nullptr); return v; };
-            auto getDevUInt = [&](cl_device_info param) {
-                cl_uint v = 0; clGetDeviceInfo(did, param, sizeof(v), &v, nullptr); return v; };
-            auto getDevSizeT = [&](cl_device_info param) {
-                size_t v = 0; clGetDeviceInfo(did, param, sizeof(v), &v, nullptr); return v; };
-            cl_device_type dtype = 0; clGetDeviceInfo(did, CL_DEVICE_TYPE, sizeof(dtype), &dtype, nullptr);
+        std::vector<cl_device_id> devices(numDevices);
+        clGetDeviceIDs(platforms[p], CL_DEVICE_TYPE_ALL, numDevices, devices.data(), nullptr);
 
-            // Display device details
-            SDL_Log("  Device [%u]", d);
-            SDL_Log("    Name:               %s", getDevStr(CL_DEVICE_NAME).c_str());
-            SDL_Log("    Vendor:             %s", getDevStr(CL_DEVICE_VENDOR).c_str());
-            SDL_Log("    Version:            %s", getDevStr(CL_DEVICE_VERSION).c_str());
-            SDL_Log("    Driver version:     %s", getDevStr(CL_DRIVER_VERSION).c_str());
-            std::string typeStr;
-            if (dtype & CL_DEVICE_TYPE_CPU) typeStr += "CPU ";
-            if (dtype & CL_DEVICE_TYPE_GPU) typeStr += "GPU ";
-            if (dtype & CL_DEVICE_TYPE_ACCELERATOR) typeStr += "ACCELERATOR ";
-            if (dtype & CL_DEVICE_TYPE_DEFAULT) typeStr += "DEFAULT ";
-            SDL_Log("    Type:               %s", typeStr.c_str());
-            SDL_Log("    Compute Units:      %u", getDevUInt(CL_DEVICE_MAX_COMPUTE_UNITS));
-            SDL_Log("    Clock Frequency:    %u MHz", getDevUInt(CL_DEVICE_MAX_CLOCK_FREQUENCY));
-            SDL_Log("    Global Mem:         %llu MiB", (unsigned long long)(getDevULong(CL_DEVICE_GLOBAL_MEM_SIZE) / (1024ULL * 1024ULL)));
-            SDL_Log("    Local Mem:          %llu KiB", (unsigned long long)(getDevULong(CL_DEVICE_LOCAL_MEM_SIZE) / 1024ULL));
-            SDL_Log("    Max WG Size:        %zu", getDevSizeT(CL_DEVICE_MAX_WORK_GROUP_SIZE));
-            {
-                size_t dims[3] = {0,0,0};
-                size_t sz = 0; clGetDeviceInfo(did, CL_DEVICE_MAX_WORK_ITEM_SIZES, 0, nullptr, &sz);
-                if (sz >= sizeof(dims)) {
-                    clGetDeviceInfo(did, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(dims), dims, nullptr);
-                    SDL_Log("    Max WG Dim:         %zux%zux%zu", dims[0], dims[1], dims[2]);
-                } else {
-                    SDL_Log("    Max WG Dim:         n/a");
-                }
-            }
-            SDL_Log("    Image Support:      %s", (getDevUInt(CL_DEVICE_IMAGE_SUPPORT) ? "Yes" : "No"));
-
-            // Display device extensions in readable format
-            std::string devExtStr = getDevStr(CL_DEVICE_EXTENSIONS);
-            SDL_Log("    Extensions:");
-            size_t devPos = 0, devNextPos;
-            while ((devNextPos = devExtStr.find(' ', devPos)) != std::string::npos) {
-                std::string ext = devExtStr.substr(devPos, devNextPos - devPos);
-                if (!ext.empty()) SDL_Log("      - %s", ext.c_str());
-                devPos = devNextPos + 1;
-            }
-            if (devPos < devExtStr.size()) {
-                std::string ext = devExtStr.substr(devPos);
-                if (!ext.empty()) SDL_Log("      - %s", ext.c_str());
-            }
+        // Iterate devices
+        for (cl_uint d = 0; d < numDevices; ++d) {
+            printClDevice(devices[d], d);
         }
     }
 }
