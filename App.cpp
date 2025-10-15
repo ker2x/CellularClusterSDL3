@@ -1,8 +1,6 @@
 #include "App.h"
 #include "DiagnosticHelper.h"
 
-#include <iostream>
-#include <vector>
 #include <iomanip>
 
 // Singleton access

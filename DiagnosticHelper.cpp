@@ -1,7 +1,6 @@
 #include "DiagnosticHelper.h"
 
 #include <vector>
-#include <iomanip>
 #include <string>
 #include <sstream>
 
@@ -16,7 +15,7 @@ namespace {
         std::istringstream iss(str);
         std::string item;
         while (iss >> item) {
-            result.push_back(item);
+            result.emplace_back(item);
         }
         return result;
     }
@@ -119,15 +118,15 @@ namespace {
 void DiagnosticHelper::printSDLVersion() {
     SDL_Log("=== SDL Version ===");
 
-    int compiled_major = SDL_MAJOR_VERSION;
-    int compiled_minor = SDL_MINOR_VERSION;
-    int compiled_patch = SDL_MICRO_VERSION;
+    constexpr int compiled_major = SDL_MAJOR_VERSION;
+    constexpr int compiled_minor = SDL_MINOR_VERSION;
+    constexpr int compiled_patch = SDL_MICRO_VERSION;
     SDL_Log("Compiled against: %d.%d.%d", compiled_major, compiled_minor, compiled_patch);
 
-    int linked_version = SDL_GetVersion();
-    int linked_major = SDL_VERSIONNUM_MAJOR(linked_version);
-    int linked_minor = SDL_VERSIONNUM_MINOR(linked_version);
-    int linked_patch = SDL_VERSIONNUM_MICRO(linked_version);
+    const int linked_version = SDL_GetVersion();
+    const int linked_major = SDL_VERSIONNUM_MAJOR(linked_version);
+    const int linked_minor = SDL_VERSIONNUM_MINOR(linked_version);
+    const int linked_patch = SDL_VERSIONNUM_MICRO(linked_version);
     SDL_Log("Linked against:   %d.%d.%d", linked_major, linked_minor, linked_patch);
 
     const char* revision = SDL_GetRevision();
@@ -176,7 +175,7 @@ void DiagnosticHelper::printSDLRendererInfo(SDL_Renderer *renderer) {
     }
 
     // Query renderer properties
-    SDL_PropertiesID props = SDL_GetRendererProperties(renderer);
+    const SDL_PropertiesID props = SDL_GetRendererProperties(renderer);
     if (!props) {
         SDL_LogWarn(SDL_LOG_CATEGORY_RENDER, "No renderer properties available");
         return;
@@ -184,19 +183,19 @@ void DiagnosticHelper::printSDLRendererInfo(SDL_Renderer *renderer) {
 
     // Core capabilities
     SDL_Log("Max texture size: %lld",
-            (long long) SDL_GetNumberProperty(props, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, -1));
+            static_cast<long long>(SDL_GetNumberProperty(props, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, -1)));
     SDL_Log("Driver:           %s",
             SDL_GetStringProperty(props, SDL_PROP_RENDERER_NAME_STRING, "(unknown)"));
     SDL_Log("VSync:            %lld",
-            (long long) SDL_GetNumberProperty(props, SDL_PROP_RENDERER_VSYNC_NUMBER, 0));
+            static_cast<long long>(SDL_GetNumberProperty(props, SDL_PROP_RENDERER_VSYNC_NUMBER, 0)));
 
     // Colorspace
-    SDL_Colorspace colorspace = static_cast<SDL_Colorspace>(
+    const SDL_Colorspace colorspace = static_cast<SDL_Colorspace>(
         SDL_GetNumberProperty(props, SDL_PROP_RENDERER_OUTPUT_COLORSPACE_NUMBER, 0));
     SDL_Log("Colorspace:       %s", getColorspaceName(colorspace));
 
     // HDR info
-    bool hdrEnabled = SDL_GetBooleanProperty(props, SDL_PROP_RENDERER_HDR_ENABLED_BOOLEAN, false);
+    const bool hdrEnabled = SDL_GetBooleanProperty(props, SDL_PROP_RENDERER_HDR_ENABLED_BOOLEAN, false);
     SDL_Log("HDR enabled:      %s", hdrEnabled ? "Yes" : "No");
     if (hdrEnabled) {
         SDL_Log("  SDR white point: %.2f",
@@ -212,7 +211,7 @@ void DiagnosticHelper::printSDLRendererInfo(SDL_Renderer *renderer) {
     if (formats) {
         std::vector<std::string> formatNames;
         for (int i = 0; formats[i] != SDL_PIXELFORMAT_UNKNOWN; ++i) {
-            formatNames.push_back(SDL_GetPixelFormatName(formats[i]));
+            formatNames.emplace_back(SDL_GetPixelFormatName(formats[i]));
         }
         printList("Texture formats:", formatNames);
     } else {
@@ -257,13 +256,13 @@ namespace {
         SDL_Log("    Clock Frequency: %u MHz", getClDeviceUInt(device, CL_DEVICE_MAX_CLOCK_FREQUENCY));
 
         // Memory info
-        cl_ulong globalMem = getClDeviceULong(device, CL_DEVICE_GLOBAL_MEM_SIZE);
-        cl_ulong localMem = getClDeviceULong(device, CL_DEVICE_LOCAL_MEM_SIZE);
-        SDL_Log("    Global Memory:   %llu MiB", (unsigned long long) (globalMem / (1024ULL * 1024ULL)));
-        SDL_Log("    Local Memory:    %llu KiB", (unsigned long long) (localMem / 1024ULL));
+        const cl_ulong globalMem = getClDeviceULong(device, CL_DEVICE_GLOBAL_MEM_SIZE);
+        const cl_ulong localMem = getClDeviceULong(device, CL_DEVICE_LOCAL_MEM_SIZE);
+        SDL_Log("    Global Memory:   %llu MiB", static_cast<unsigned long long>(globalMem / (1024ULL * 1024ULL)));
+        SDL_Log("    Local Memory:    %llu KiB", static_cast<unsigned long long>(localMem / 1024ULL));
 
         // Work group info
-        size_t maxWorkGroupSize = getClDeviceSizeT(device, CL_DEVICE_MAX_WORK_GROUP_SIZE);
+        const size_t maxWorkGroupSize = getClDeviceSizeT(device, CL_DEVICE_MAX_WORK_GROUP_SIZE);
         SDL_Log("    Max WG Size:     %zu", maxWorkGroupSize);
 
         size_t dims[3] = {0, 0, 0};
@@ -277,12 +276,12 @@ namespace {
         }
 
         // Image support
-        bool imageSupport = getClDeviceUInt(device, CL_DEVICE_IMAGE_SUPPORT) != 0;
+        const bool imageSupport = getClDeviceUInt(device, CL_DEVICE_IMAGE_SUPPORT) != 0;
         SDL_Log("    Image Support:   %s", imageSupport ? "Yes" : "No");
 
         // Extensions
-        std::string extensionsStr = getClDeviceString(device, CL_DEVICE_EXTENSIONS);
-        std::vector<std::string> extensions = splitBySpace(extensionsStr);
+        const std::string extensionsStr = getClDeviceString(device, CL_DEVICE_EXTENSIONS);
+        const std::vector<std::string> extensions = splitBySpace(extensionsStr);
         printList("Extensions:", extensions, "    ");
     }
 } // anonymous namespace
