@@ -2,22 +2,22 @@
 
 #include <vector>
 #include <string>
-#include <sstream>
+#include <ranges>
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
 namespace {
-    // Split space-separated string into individual items
+    // Split space-separated string into individual items using C++23 ranges
     std::vector<std::string> splitBySpace(const std::string &str) {
-        std::vector<std::string> result;
-        std::istringstream iss(str);
-        std::string item;
-        while (iss >> item) {
-            result.emplace_back(item);
-        }
-        return result;
+        auto words = str
+            | std::views::split(' ')
+            | std::views::filter([](auto&& word) { return !std::ranges::empty(word); })
+            | std::views::transform([](auto&& word) {
+                return std::string(word.begin(), word.end());
+            });
+        return std::ranges::to<std::vector>(words);
     }
 
     // Print a list of items with bullet points
