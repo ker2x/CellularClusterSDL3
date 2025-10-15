@@ -27,6 +27,24 @@ void DiagnosticHelper::printSDLRenderDrivers() {
     }
 }
 
+// Helper function to convert SDL_Colorspace enum to human-readable string
+static const char* getColorspaceName(SDL_Colorspace cs) {
+    switch (cs) {
+        case SDL_COLORSPACE_UNKNOWN: return "Unknown";
+        case SDL_COLORSPACE_SRGB: return "sRGB (gamma corrected)";
+        case SDL_COLORSPACE_SRGB_LINEAR: return "sRGB Linear";
+        case SDL_COLORSPACE_HDR10: return "HDR10 (BT.2020 PQ)";
+        case SDL_COLORSPACE_JPEG: return "JPEG (BT.709 YCbCr Full)";
+        case SDL_COLORSPACE_BT601_LIMITED: return "BT.601 Limited";
+        case SDL_COLORSPACE_BT601_FULL: return "BT.601 Full";
+        case SDL_COLORSPACE_BT709_LIMITED: return "BT.709 Limited";
+        case SDL_COLORSPACE_BT709_FULL: return "BT.709 Full";
+        case SDL_COLORSPACE_BT2020_LIMITED: return "BT.2020 Limited";
+        case SDL_COLORSPACE_BT2020_FULL: return "BT.2020 Full";
+        default: return "Custom/Unknown";
+    }
+}
+
 // Print detailed renderer properties and capabilities
 void DiagnosticHelper::printSDLRendererInfo(SDL_Renderer *r) {
     SDL_Log("=== SDL Current Renderer ===");
@@ -52,7 +70,10 @@ void DiagnosticHelper::printSDLRendererInfo(SDL_Renderer *r) {
         SDL_Log("Max texture size: %lld", (long long)getNum(SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, -1));
         SDL_Log("Driver (property): %s", getStr(SDL_PROP_RENDERER_NAME_STRING, "(unknown)"));
         SDL_Log("VSync setting:    %lld", (long long)getNum(SDL_PROP_RENDERER_VSYNC_NUMBER, 0));
-        SDL_Log("Output colorspace:%lld", (long long)getNum(SDL_PROP_RENDERER_OUTPUT_COLORSPACE_NUMBER, 0));
+
+        // Display colorspace in human-readable format
+        SDL_Colorspace colorspace = static_cast<SDL_Colorspace>(getNum(SDL_PROP_RENDERER_OUTPUT_COLORSPACE_NUMBER, 0));
+        SDL_Log("Output colorspace: %s", getColorspaceName(colorspace));
         SDL_Log("HDR enabled:      %s", (getBool(SDL_PROP_RENDERER_HDR_ENABLED_BOOLEAN, false) ? "Yes" : "No"));
         SDL_Log("SDR white point:  %f", SDL_GetFloatProperty(props, SDL_PROP_RENDERER_SDR_WHITE_POINT_FLOAT, 0.0f));
         SDL_Log("HDR headroom:     %f", SDL_GetFloatProperty(props, SDL_PROP_RENDERER_HDR_HEADROOM_FLOAT, 0.0f));
@@ -60,15 +81,13 @@ void DiagnosticHelper::printSDLRendererInfo(SDL_Renderer *r) {
         // List supported texture formats
         const SDL_PixelFormat *fmts = static_cast<const SDL_PixelFormat*>(getPtr(SDL_PROP_RENDERER_TEXTURE_FORMATS_POINTER));
         if (fmts) {
-            std::string line = "Texture formats:  ";
-            bool first = true;
+            SDL_Log("Texture formats:");
+            bool found = false;
             for (int i = 0; fmts[i] != SDL_PIXELFORMAT_UNKNOWN; ++i) {
-                if (!first) line += ", ";
-                first = false;
-                line += SDL_GetPixelFormatName(fmts[i]);
+                SDL_Log("  - %s", SDL_GetPixelFormatName(fmts[i]));
+                found = true;
             }
-            if (first) line += "(none)";
-            SDL_Log("%s", line.c_str());
+            if (!found) SDL_Log("  (none)");
         } else {
             SDL_Log("Texture formats:  (unknown)");
         }
@@ -111,7 +130,19 @@ void DiagnosticHelper::printOpenCLInfo() {
         SDL_Log("  Version:  %s", getPlatStr(CL_PLATFORM_VERSION).c_str());
         SDL_Log("  Name:     %s", getPlatStr(CL_PLATFORM_NAME).c_str());
         SDL_Log("  Vendor:   %s", getPlatStr(CL_PLATFORM_VENDOR).c_str());
-        SDL_Log("  Extensions: %s", getPlatStr(CL_PLATFORM_EXTENSIONS).c_str());
+        // Display platform extensions in readable format
+        std::string extStr = getPlatStr(CL_PLATFORM_EXTENSIONS);
+        SDL_Log("  Extensions:");
+        size_t pos = 0, nextPos;
+        while ((nextPos = extStr.find(' ', pos)) != std::string::npos) {
+            std::string ext = extStr.substr(pos, nextPos - pos);
+            if (!ext.empty()) SDL_Log("    - %s", ext.c_str());
+            pos = nextPos + 1;
+        }
+        if (pos < extStr.size()) {
+            std::string ext = extStr.substr(pos);
+            if (!ext.empty()) SDL_Log("    - %s", ext.c_str());
+        }
 
         // Enumerate devices for this platform
         cl_uint num_devices = 0;
@@ -171,7 +202,20 @@ void DiagnosticHelper::printOpenCLInfo() {
                 }
             }
             SDL_Log("    Image Support:      %s", (getDevUInt(CL_DEVICE_IMAGE_SUPPORT) ? "Yes" : "No"));
-            SDL_Log("    Extensions:         %s", getDevStr(CL_DEVICE_EXTENSIONS).c_str());
+
+            // Display device extensions in readable format
+            std::string devExtStr = getDevStr(CL_DEVICE_EXTENSIONS);
+            SDL_Log("    Extensions:");
+            size_t devPos = 0, devNextPos;
+            while ((devNextPos = devExtStr.find(' ', devPos)) != std::string::npos) {
+                std::string ext = devExtStr.substr(devPos, devNextPos - devPos);
+                if (!ext.empty()) SDL_Log("      - %s", ext.c_str());
+                devPos = devNextPos + 1;
+            }
+            if (devPos < devExtStr.size()) {
+                std::string ext = devExtStr.substr(devPos);
+                if (!ext.empty()) SDL_Log("      - %s", ext.c_str());
+            }
         }
     }
 }
