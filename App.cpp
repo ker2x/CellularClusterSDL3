@@ -39,7 +39,11 @@ SDL_AppResult App::init(int /*argc*/, char** /*argv*/) {
         SDL_Log("SDL_CreateWindowAndRenderer: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
-    SDL_SetRenderLogicalPresentation(renderer_, WIDTH, HEIGHT, SDL_LOGICAL_PRESENTATION_STRETCH);
+
+    if (!SDL_SetRenderLogicalPresentation(renderer_, WIDTH, HEIGHT, SDL_LOGICAL_PRESENTATION_STRETCH)) {
+        SDL_Log("SDL_SetRenderLogicalPresentation: %s", SDL_GetError());
+        return SDL_APP_FAILURE;
+    }
 
     DiagnosticHelper::printSDLRendererInfo(renderer_);
     DiagnosticHelper::printOpenCLInfo();
